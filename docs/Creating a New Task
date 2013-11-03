@@ -1,0 +1,62 @@
+Creating a New Task
+
+Out of the box, all this framework provides you the ability to do is to start up a bunch of worker processes 
+that will be able to report on the number of worker processes and stop themselves.  If any further 
+functionality is required, you will need to add it.
+
+Tasks should be organized into 'Packages' of related tasks.  Each package exists in the codebase as a top 
+level directory, and all tasks in that package will be placed within a 'Tasks' subdirectory.
+
+Each single task is represented by a single class, and must provide an implementation for a single method:
+doWork.  Once a request is sent to Gearman and assigned to the application process, the application will 
+route the request and all incoming data associated with it to the task class and call this method in which 
+the actual work must be done.
+
+As an example, consider the following example:
+
+    <?php namespace MyPackage\Tasks;
+
+    use Jnet\Lib\Worker as Worker;
+
+    class Reverse extends Worker
+    {
+        public function doWork( )
+        {
+            $data = $this->_options['data'];
+            return strrev( $data );
+        }
+    }
+
+This class would live in the file /MyPackage/Tasks/Reverse.php, and will be called on the client side via:
+
+    <?php
+
+    $request = array(
+        'serviceCall' => 'reverse',
+        'options' => array(
+            'package' => 'MyPackage',
+            'data' => 'Reverse This!',
+        ),
+    );
+
+    $client = new GearmanClient( );
+    $client->addServer( '127.0.0.1', 4730 );
+    print $client->doNormal( 'serviceRequest', json_encode( $request ) ) . "\n";
+
+If you need to return non-scalar data (such as arrays or objects), please note that your data will be 
+JSON-encoded prior to being returned back to the client.  This is because the Gearman Job Server will 
+only be able to relay scalar data to and from the client and worker.
+
+Worker Factories
+
+It is very possible when creating a group of tasks that it would be better to create a sub-class of the 
+base worker class, Jnet\Lib\Worker.  This could happen if, for instance, you are using Gearman as a 
+data service bus to integrate two separate applications and all of your tasks need to share some sort of 
+configuration.
+
+You can accomplish this in a separate package by creating Package\Lib\WorkerFactory and Package\Lib\Worker 
+classes.  Any requests being routed to tasks living in in the package Package will then have the tasks 
+constructed from within the Package\Lib\WorkerFactory class, which you can choose to then return a 
+different Worker-type implementation.  All that is really required of the workers themselves is that they 
+implement Jnet\Lib\iGearmanTask, although Jnet\Lib\Worker does provide some methods that come in handy for 
+validating the data passed to the task.
