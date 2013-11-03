@@ -87,8 +87,12 @@ class Application
         // Determine job server IP addresses / ports
         if( isset( $args['s'] ) || isset( $args['server'] ) ) {
             $servers = isset( $args['s'] ) ? $args['s'] : $args['server'];
-            if( !is_array( $servers ) ) {
-                $servers = array( $servers );
+            if( is_array( $servers ) ) {
+                foreach( $servers as $server ) {
+                    $config['servers'][] = $server;
+                }
+            } else {
+                $config['servers'][] = $servers;
             }
         } else {
             $servers = array( DEFAULT_JOB_SERVER_IP );
@@ -96,15 +100,19 @@ class Application
 
         if( isset( $args['p'] ) || isset( $args['port'] ) ) {
             $ports = isset( $args['p'] ) ? $args['p'] : $args['port'];
-            if( !is_array( $ports ) ) {
-                $ports = array( $ports );
+            if( is_array( $ports ) ) {
+                foreach( $ports as $port ) {
+                    $config['ports'][] = $port;
+                }
+            } else {
+                $config['ports'][] = $ports;
             }
         } else {
             $ports = array( DEFAULT_JOB_SERVER_PORT );
         }
 
         // Populate array of job servers
-        $this->_jobServers = JobServer::create( $servers, $ports, $this );
+        $this->_jobServers = JobServer::create( $config['servers'], $config['ports'], $this );
 
        return $this;
     }
