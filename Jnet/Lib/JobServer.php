@@ -1,4 +1,12 @@
 <?php namespace Jnet\Lib;
+/**
+ * @author      Jeff Lambert
+ * @category    Gearman
+ * @package     Jnet
+ * @subpackage  Lib
+ * @link        <https://github.com/jeffsrepoaccount>
+ */
+use \GearmanWorker as GearmanWorker;
 
 class JobServer
 {
@@ -25,10 +33,9 @@ class JobServer
     /**
      * Connects to the Gearman Job Server
      */
-    public function connect( )
+    public function connect( GearmanWorker $worker )
     {
-        $this->_app->log( 'Connecting to Server: ' . $this->_ip . ':' . $this->_port );
-
+        $worker->addServer( $this->_ip, $this->_port );
         return $this;
     }
     //}}}

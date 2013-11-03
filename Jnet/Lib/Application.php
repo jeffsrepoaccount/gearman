@@ -1,7 +1,17 @@
 <?php namespace Jnet\Lib;
+/**
+ * @author      Jeff Lambert
+ * @category    Gearman
+ * @package     Jnet
+ * @subpackage  Lib
+ * @link        <https://github.com/jeffsrepoaccount>
+ */
+use \GearmanWorker as GearmanWorker;
 
 class Application
 {
+    const CONFIG_FILE = 'config.ini';
+
     const MODE_BLOCKING = 0;
     const MODE_NONBLOCKING = 1;
 
@@ -13,14 +23,16 @@ class Application
     private $_logger = null;
     // Integer mode - blocking / non-blocking
     private $_mode = null;
+    // The GearmanClient worker object this process will use
+    private $_worker = null;
 
     public function __construct( )
     {
         $this->_logger = new Logger( );
         // Default the application to blocking mode
         $this->_mode = self::MODE_BLOCKING;
+        $this->_worker = new GearmanWorker( );
 
-        $this->log( 'APPLICATION STARTUP' );
     }
 
     //{{{ addJobServer
@@ -29,8 +41,9 @@ class Application
      */
     public function addJobServers(  )
     {
+        $this->log( 'Connecting to job servers...' );
         foreach( $this->_jobServers as $jobServer ) {
-            $jobServer->connect( );
+            $jobServer->connect( $this->_worker );
         }
         return $this;
     }
@@ -45,12 +58,18 @@ class Application
      */
     public function setArguments( )
     {
-        $args = getopt( 'nbl:s:p:', array( 'nonblocking', 'blocking', 'logfile:', 'server:', 'port:' ) );
+        // Read Config file
+        $config = $this->_readConfig( );
 
-        // Determine application mode
+        $args = getopt( 'nbl:s:p:', 
+            array( 'nonblocking', 'blocking', 'logfile:', 'server:', 'port:' ) 
+        );
+
+        // Determine application mode. Default mode is blocking, so 
+        // only switch mode if nonblocking is specified.
         if( isset( $args['n'] ) || isset( $args['nonblocking'] ) ) {
-            $this->_mode = self::MODE_NONBLOCKING;
-        }
+            $config['mode']['nonblocking'] = true;
+        } 
 
         // Determine location of the logfile
         if( isset( $args['l'] ) || isset( $args['logfile'] ) ) {
@@ -62,6 +81,8 @@ class Application
 
             $this->setLogFile( $logfile );
         }
+
+        $this->log( 'APPLICATION STARTUP' );
 
         // Determine job server IP addresses / ports
         if( isset( $args['s'] ) || isset( $args['server'] ) ) {
@@ -88,12 +109,37 @@ class Application
        return $this;
     }
     //}}}
+    //{{{
+    /**
+     * Read in configuration specified by the 
+     */
+    protected function _readConfig( )
+    {
+        if( ! ( $config = parse_ini_file( self::CONFIG_FILE ) ) ) {
+            $config = array(
+                'mode' => array(
+                    'blocking' => true,
+                    'nonblocking' => false,
+                ),
+                'servers' => array(
+                    '127.0.0.1',
+                ),
+                'ports' => array(
+                    4730,
+                ),
+            );
+        }
+        return $config;
+    }
+    //}}}
     //{{{ beginWork
     /**
      * 
      */
     public function beginWork( )
     {
+        $this->_attachJob( );
+
         switch( $this->_mode ) {
             case self::MODE_NONBLOCKING:
                 $this->_workNonBlocking( ); break;
@@ -120,6 +166,12 @@ class Application
     private function _workBlocking( )
     {
         $this->log( 'Beginning Blocking Operation' );
+
+        while( $this->_worker->work( ) ) {
+            $this->log( '+ Job Complete' );
+        }
+
+        $this->_worker->unRegisterAll( );
     }
     //}}}
     //{{{
@@ -169,4 +221,66 @@ class Application
         return $this;
     }
     //}}}
+    //{{{ _attachJob
+    /**
+     * The logic exists here for handling each service request, inside a lambda 
+     * function for the purpose of protecting the work loop from being 
+     * broken when exceptions are thrown from within worker tasks.
+     */
+    private function _attachJob( )
+    {
+        // Can't specify 'this' as a closure variable, so grab a reference 
+        // to use from within the lambda
+        $host = $this;
+        // These options will represent the default options handed to all 
+        // service calls.  Any value provided from a client request will 
+        // override any values specified here.
+        $options = array(
+            'package' => 'Jnet',
+        );
+        $this->_worker->addFunction( SERVICE_CALL, function( $job ) use( $host, $options ) {
+            try {
+                $request = json_decode( $job->workload( ), true );
+
+                if( !isset( $request['serviceCall'] ) ) {
+                    throw new \UnexpectedValueException( 'Service Call Not Specified' );
+                }
+
+                if( !isset( $request['options'] ) ) {
+                    $request['options'] = $options;
+                } else {
+                    $request['options'] = array_replace_recursive(
+                        $options, $request['options']
+                    );
+                }
+
+                $package = $request['options']['package'];
+
+                $host->log( 
+                    '+ Job Received: ' . $request['serviceCall'] . 
+                    ' (Package: ' . $package . ')' 
+                );
+
+                // Retrieve the worker from a worker factory
+                $worker = WorkerFactory::getFactory( $request, $host )->getWorker( );
+
+                if( $worker ) {
+                    $result = $worker->doWork( );
+                }
+
+            } catch( Exception $e ) {
+                $host->logError( 'Worker Exception: ' . $e->getMessage( ) );
+
+                $result = array( 'success' => false, 'message' => 'Worker Exception: ' . $e->getMessage( ) );
+            }
+
+            if( !is_scalar( $result ) ) {
+                $result = json_encode( $result );
+            }
+
+            return $result;
+        } );
+
+        return $this;
+    }
 }

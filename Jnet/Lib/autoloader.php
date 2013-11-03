@@ -1,6 +1,6 @@
 <?php
 /**
- * Minimal PSR-0 Autoloader
+ * Minimal PSR-0 Autoloader - Supports Namespaces
  * From: http://zaemis.blogspot.com/2012/05/writing-minimal-psr-0-autoloader.html
  */
 

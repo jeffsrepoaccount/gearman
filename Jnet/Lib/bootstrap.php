@@ -1,4 +1,11 @@
 <?php
+/**
+ * @author      Jeff Lambert
+ * @category    Gearman
+ * @package     Jnet
+ * @subpackage  Lib
+ * @link        <https://github.com/jeffsrepoaccount>
+ */
 define( 'WORKER_START', microtime( true ) );
 
 ini_set( 'default_socket_timeout', 300 );
