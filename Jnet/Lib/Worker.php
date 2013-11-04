@@ -11,19 +11,22 @@
 
 use \RuntimeException           as RuntimeException;
 use \UnexpectedValueException   as UnexpectedValueException;
+use \GearmanJob                 as GearmanJob;
 
 abstract class Worker implements iGearmanTask
 {
     protected $_options     = array( );
     protected $_app         = null;
+    protected $_job         = null;
 
     //{{{ __construct
     /**
      * Base Worker Construction
      */
-    public function __construct( $options, Application $app )
+    public function __construct( $options, GearmanJob $job, Application $app )
     {
         $this->_options = $options;
+        $this->_job = $job;
         $this->_app = $app;
     }
     //}}}

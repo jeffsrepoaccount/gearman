@@ -1,5 +1,8 @@
 <?php namespace Jnet\Lib;
 /**
+ * Job Server class. Provides a static factory method to retrieve an array 
+ * of JobServer instances given an array of IPs and an array of ports.
+ *
  * @author      Jeff Lambert
  * @category    Gearman
  * @package     Jnet
@@ -39,7 +42,6 @@ class JobServer
         return $this;
     }
     //}}}
-
     //{{{ create
     /**
      * Factory method that will return a number of JobServer 

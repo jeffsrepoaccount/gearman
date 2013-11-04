@@ -58,7 +58,7 @@ class WorkerFactory implements iWorkerFactory
     public function getWorker( )
     {
         $worker = $this->_request['options']['package'] . '\\' . 'Tasks\\' . ucfirst( $this->_request['serviceCall'] );
-        return new $worker( $this->_request['options'], $this->_app );
+        return new $worker( $this->_request['options'], $this->_request['job'], $this->_app );
     }
 
 }

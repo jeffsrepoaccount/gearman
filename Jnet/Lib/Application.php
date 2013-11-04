@@ -12,29 +12,50 @@ class Application
 {
     const CONFIG_FILE = 'config.ini';
 
-    const MODE_BLOCKING = 0;
-    const MODE_NONBLOCKING = 1;
-
+    /**
+     * @var array _arguments
+     * Array of arguments provided to the application
+     */
     private $_arguments = array( );
-
-    // Array of Job Server Objects
+    /**
+     * @var array
+     * Array of Jnet\Lib\JobServer Objects
+     */
     private $_jobServers = array( );
-    // Logger Object
+    /**
+     * @var Jnet\Lib\Logger _logger
+     * Logger Object
+     */
     private $_logger = null;
-    // Integer mode - blocking / non-blocking
-    private $_mode = null;
-    // The GearmanClient worker object this process will use
+    /**
+     * @var GearmanWorker _worker 
+     * The GearmanClient worker object this process will use
+     */
     private $_worker = null;
+    /**
+     * @var bool _terminate
+     * Flag for whether the application has received a termination signal.
+     */
+    private $_terminate = false;
 
+    //{{{ __construct
+    /**
+     * Sets up application logging, initializes GearmanWorker and registers 
+     * signal handling functions
+     */
     public function __construct( )
     {
+        // Set Instance of Logger
         $this->_logger = new Logger( );
-        // Default the application to blocking mode
-        $this->_mode = self::MODE_BLOCKING;
+
+        // Set instance of GearmanWorker
         $this->_worker = new GearmanWorker( );
 
-    }
+        // Register signal listeners
+        $this->_registerSignals( );
 
+    }
+    //}}}
     //{{{ addJobServer
     /**
      * Connects this worker process to each of the job servers
@@ -45,6 +66,18 @@ class Application
         foreach( $this->_jobServers as $jobServer ) {
             $jobServer->connect( $this->_worker );
         }
+        return $this;
+    }
+    //}}}
+    //{{{ beginWork
+    /**
+     * This function will not return until the work loop is broken.
+     *
+     * @return Jnet\Lib\Application
+     */
+    public function beginWork( )
+    {
+        $this->_attachJob( )->_workLoop( );
         return $this;
     }
     //}}}
@@ -117,65 +150,51 @@ class Application
        return $this;
     }
     //}}}
-    //{{{
+    //{{{ _registerSignals
     /**
-     * Read in configuration specified by the 
+     * Registers listener for termination and sets terminate flag when the 
+     * signal is received.
+     *
+     * @return Jnet\Lib\Application
+     */
+    protected function _registerSignals( )
+    {
+        $terminate = &$this->_terminate;
+        pcntl_signal( SIGTERM, function( ) use( $terminate )  {
+            $terminate = true;
+        } );
+
+        return $this;
+    }
+    //}}}
+    //{{{ _readConfig
+    /**
+     * Read in configuration specified by the configuration file. If config 
+     * fails to load, generate a default representation.
+     *
+     * @return array Representation of the config file
      */
     protected function _readConfig( )
     {
         if( ! ( $config = parse_ini_file( self::CONFIG_FILE ) ) ) {
             $config = array(
-                'mode' => array(
-                    'blocking' => true,
-                    'nonblocking' => false,
-                ),
-                'servers' => array(
-                    '127.0.0.1',
-                ),
-                'ports' => array(
-                    4730,
-                ),
+                'servers'   => array( DEFAULT_JOB_SERVER_IP     ),
+                'ports'     => array( DEFAULT_JOB_SERVER_PORT   ),
             );
         }
         return $config;
     }
     //}}}
-    //{{{ beginWork
+    //{{{ _workLoop
     /**
-     * 
+     * Sets up the worker loop 
      */
-    public function beginWork( )
+    private function _workLoop( )
     {
-        $this->_attachJob( );
+        $this->log( 'Entering Work Loop' );
 
-        switch( $this->_mode ) {
-            case self::MODE_NONBLOCKING:
-                $this->_workNonBlocking( ); break;
-            case self::MODE_BLOCKING:   default:
-                $this->_workBlocking( ); break;
-        }
-
-        return $this;
-    }
-    //}}}
-    //{{{ _workNonBlocking
-    /**
-     * Sets up the worker loop for non-blocking operation
-     */
-    private function _workNonBlocking( )
-    {
-        $this->log( 'Beginning Non-Blocking Operation' );
-    }
-    //}}}
-    //{{{ _workBlocking
-    /**
-     * Sets up the worker loop for blocking operation
-     */
-    private function _workBlocking( )
-    {
-        $this->log( 'Beginning Blocking Operation' );
-
-        while( $this->_worker->work( ) ) {
+        // The Worker Loop
+        while( !$this->_terminate && $this->_worker->work( ) ) {
             $this->log( '+ Job Complete' );
         }
 
@@ -234,6 +253,12 @@ class Application
      * The logic exists here for handling each service request, inside a lambda 
      * function for the purpose of protecting the work loop from being 
      * broken when exceptions are thrown from within worker tasks.
+     *
+     * The lambda function defined here will be called every time a service 
+     * request is sent to this Gearman Worker, whether running in blocking 
+     * mode or non-blocking mode.
+     *
+     * @return Jnet\Lib\Application
      */
     private function _attachJob( )
     {
@@ -244,8 +269,11 @@ class Application
         // service calls.  Any value provided from a client request will 
         // override any values specified here.
         $options = array(
+            // The default package if no package is specified
             'package' => 'Jnet',
         );
+
+        // Add callback function to the worker
         $this->_worker->addFunction( SERVICE_CALL, function( $job ) use( $host, $options ) {
             try {
                 $request = json_decode( $job->workload( ), true );
@@ -257,10 +285,13 @@ class Application
                 if( !isset( $request['options'] ) ) {
                     $request['options'] = $options;
                 } else {
+                    // Merge supplied options with the default options from above
                     $request['options'] = array_replace_recursive(
                         $options, $request['options']
                     );
                 }
+
+                $request['job'] = $job;
 
                 $package = $request['options']['package'];
 
@@ -271,17 +302,19 @@ class Application
 
                 // Retrieve the worker from a worker factory
                 $worker = WorkerFactory::getFactory( $request, $host )->getWorker( );
+                $host->log( '+ Worker Retrieved: ' . get_class( $worker ) );
 
                 if( $worker ) {
                     $result = $worker->doWork( );
                 }
 
             } catch( Exception $e ) {
-                $host->logError( 'Worker Exception: ' . $e->getMessage( ) );
-
+                $host->logError( 'Worker Exception: (' . get_class( $e ) . ') ' . $e->getMessage( ) );
                 $result = array( 'success' => false, 'message' => 'Worker Exception: ' . $e->getMessage( ) );
             }
 
+            // Job Server can only relay back scalar data. If the return value 
+            // is not scalar, return the JSON representation as a string.
             if( !is_scalar( $result ) ) {
                 $result = json_encode( $result );
             }
@@ -289,6 +322,7 @@ class Application
             return $result;
         } );
 
+        // Gearman Job attached to the worker
         return $this;
     }
 }
