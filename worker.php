@@ -11,7 +11,7 @@
  * @link        <https://github.com/jeffsrepoaccount>
  */
 
-declare(ticks = 1);
+declare( ticks = 1 );
 
 $app = require_once __DIR__ . '/Jnet/Lib/bootstrap.php';
 

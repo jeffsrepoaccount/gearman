@@ -8,5 +8,11 @@
  */
 interface iWorkerFactory
 {
+    /**
+     * Each worker factory must provide an interface to 
+     * retrieve a worker object.
+     *
+     * @return Jnet\Lib\Worker
+     */
     public function getWorker( );
 }

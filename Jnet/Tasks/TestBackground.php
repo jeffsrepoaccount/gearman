@@ -23,14 +23,15 @@ class TestBackground extends Worker
      */
     public function doWork( )
     {
-        $limit = 30;
+        $limit = $this->_options['count'];
+        $this->_app->log( '+ Counting to ' . $limit . '...' );
         $current = 0;
         while( ++$current <= $limit ) {
 
             // Log a message so that we can tell something is happening,
             // then send a status update back to the job server.  Sleep 
             // to simulate this taking a long time.
-            $this->_app->log( $current . '...' );
+            $this->_app->log( $current );
             $this->_job->sendStatus( $current, $limit );
             sleep( 1 );
         
