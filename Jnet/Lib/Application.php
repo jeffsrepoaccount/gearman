@@ -10,11 +10,10 @@ use \GearmanWorker as GearmanWorker;
 
 class Application
 {
-    const CONFIG_FILE = 'config.ini';
-
     /**
      * @var array _arguments
-     * Array of arguments provided to the application
+     *
+     * Array of arguments provided to the application. 
      */
     private $_arguments = array( );
     /**
@@ -38,12 +37,17 @@ class Application
      */
     private $_terminate = false;
 
+
+// Public Methods
+
     //{{{ __construct
     /**
      * Sets up application logging, initializes GearmanWorker and registers 
      * signal handling functions
+     *
+     * @param array $args Command line arguments passed in
      */
-    public function __construct( )
+    public function __construct( array $args )
     {
         // Set Instance of Logger
         $this->_logger = new Logger( );
@@ -51,16 +55,40 @@ class Application
         // Set instance of GearmanWorker
         $this->_worker = new GearmanWorker( );
 
+        // Set Configuration Manager
+        $this->_config = new ConfigurationManager( gethostname( ), $args, $this->_logger );
+
         // Register signal listeners
         $this->_registerSignals( );
 
+        $this->log( 'APPLICATION STARTUP' );
     }
     //}}}
-    //{{{ addJobServer
+    //{{{ loadEnvironment
+    /**
+     * Loads configuration values from the main configuration file as well as 
+     * the current environment
+     */
+    public function loadEnvironment( )
+    {
+
+        $this->_config
+            ->loadEnvironment( )
+            ->addArguments( )
+
+        ;
+
+        die( __METHOD__ );
+    }
+
+    //}}}
+    //{{{ connectJobServers
     /**
      * Connects this worker process to each of the job servers
+     *
+     * @return Jnet\Lib\Application
      */
-    public function addJobServers(  )
+    public function connectJobServers(  )
     {
         $this->log( 'Connecting to job servers...' );
         foreach( $this->_jobServers as $jobServer ) {
@@ -77,10 +105,18 @@ class Application
      */
     public function beginWork( )
     {
+        die( __METHOD__ );
         $this->_attachJob( )->_workLoop( );
         return $this;
     }
     //}}}
+    
+
+// End Public Methods
+
+
+
+
     //{{{ setArguments
     /**
      * Sets the command line arguments. Blocking argument is added for 
@@ -89,20 +125,19 @@ class Application
      *
      * @return Jnet\Lib\Application
      */
-    public function setArguments( )
+    public function setConfig( )
     {
         // Read Config file
         $config = $this->_readConfig( );
 
-        $args = getopt( 'nbl:s:p:', 
-            array( 'nonblocking', 'blocking', 'logfile:', 'server:', 'port:' ) 
+        $args = getopt( 'l:s:p:e:', 
+            array( 'logfile:', 'server:', 'port:', 'environment:' ) 
         );
 
-        // Determine application mode. Default mode is blocking, so 
-        // only switch mode if nonblocking is specified.
-        if( isset( $args['n'] ) || isset( $args['nonblocking'] ) ) {
-            $config['mode']['nonblocking'] = true;
-        } 
+        
+        var_dump( $args );
+        die;
+
 
         // Determine location of the logfile
         if( isset( $args['l'] ) || isset( $args['logfile'] ) ) {
@@ -115,9 +150,16 @@ class Application
             $this->setLogFile( $logfile );
         }
 
-        $this->log( 'APPLICATION STARTUP' );
-
-        // Determine job server IP addresses / ports
+        return $this;
+    }
+    //}}}
+    //{{{ _loadJobServers
+    /**
+     * 
+     */
+    protected function _loadJobServers( )
+    {
+    // Determine job server IP addresses / ports
         if( isset( $args['s'] ) || isset( $args['server'] ) ) {
             $servers = isset( $args['s'] ) ? $args['s'] : $args['server'];
             if( is_array( $servers ) ) {
@@ -146,8 +188,6 @@ class Application
 
         // Populate array of job servers
         $this->_jobServers = JobServer::create( $config['servers'], $config['ports'], $this );
-
-       return $this;
     }
     //}}}
     //{{{ _registerSignals
@@ -176,6 +216,12 @@ class Application
      */
     protected function _readConfig( )
     {
+
+        var_dump( $this->_config );
+
+        die;
+
+
         if( ! ( $config = parse_ini_file( self::CONFIG_FILE ) ) ) {
             $config = array(
                 'servers'   => array( DEFAULT_JOB_SERVER_IP     ),

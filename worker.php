@@ -15,15 +15,10 @@ declare( ticks = 1 );
 
 $app = require_once __DIR__ . '/Jnet/Lib/bootstrap.php';
 
-$arguments = isset( $argv ) ? $argv : array( );
-
 try {
 
-    // First, tell the application about any command line arguments
-    $app->setArguments( $arguments )
-    // Next, add all of the job servers to the application
-        ->addJobServers( )
-    // Finally, begin working
+    $app->loadEnvironment( )
+        ->connectJobServers( )
         ->beginWork( )
     ;
 

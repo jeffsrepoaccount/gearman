@@ -14,4 +14,4 @@ ini_set( 'default_socket_timeout', 300 );
 require_once __DIR__ . '/autoloader.php';
 require_once __DIR__ . '/constants.php';
 
-return new Jnet\Lib\Application;
+return new Jnet\Lib\Application( $argv );
