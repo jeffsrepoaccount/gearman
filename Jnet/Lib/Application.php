@@ -75,10 +75,16 @@ class Application
         $this->_config
             ->loadEnvironment( )
             ->addArguments( )
-
         ;
 
-        die( __METHOD__ );
+        // Set the log file
+        $logSettings = $this->_config->settings( 'logs' );
+        if( $logSettings['file'] == 'stdout' || $logSettings['file'] == 'stderr' ) {
+            $logSettings['file'] = 'php://' . $logSettings['file'];
+        }
+        $this->_logger->setLogFile( $logSettings['file'] );
+
+        return $this;
     }
 
     //}}}
@@ -91,6 +97,9 @@ class Application
     public function connectJobServers(  )
     {
         $this->log( 'Connecting to job servers...' );
+
+        die(__METHOD__);
+
         foreach( $this->_jobServers as $jobServer ) {
             $jobServer->connect( $this->_worker );
         }
@@ -117,42 +126,7 @@ class Application
 
 
 
-    //{{{ setArguments
-    /**
-     * Sets the command line arguments. Blocking argument is added for 
-     * completeness; it is not necessary to ever specify that argument since 
-     * that is the default mode of the application.
-     *
-     * @return Jnet\Lib\Application
-     */
-    public function setConfig( )
-    {
-        // Read Config file
-        $config = $this->_readConfig( );
-
-        $args = getopt( 'l:s:p:e:', 
-            array( 'logfile:', 'server:', 'port:', 'environment:' ) 
-        );
-
-        
-        var_dump( $args );
-        die;
-
-
-        // Determine location of the logfile
-        if( isset( $args['l'] ) || isset( $args['logfile'] ) ) {
-            
-            $logfile = isset( $args['l'] ) ? 
-                $args['l'] : 
-                $args['logfile']
-            ;
-
-            $this->setLogFile( $logfile );
-        }
-
-        return $this;
-    }
-    //}}}
+   
     //{{{ _loadJobServers
     /**
      * 
@@ -205,30 +179,6 @@ class Application
         } );
 
         return $this;
-    }
-    //}}}
-    //{{{ _readConfig
-    /**
-     * Read in configuration specified by the configuration file. If config 
-     * fails to load, generate a default representation.
-     *
-     * @return array Representation of the config file
-     */
-    protected function _readConfig( )
-    {
-
-        var_dump( $this->_config );
-
-        die;
-
-
-        if( ! ( $config = parse_ini_file( self::CONFIG_FILE ) ) ) {
-            $config = array(
-                'servers'   => array( DEFAULT_JOB_SERVER_IP     ),
-                'ports'     => array( DEFAULT_JOB_SERVER_PORT   ),
-            );
-        }
-        return $config;
     }
     //}}}
     //{{{ _workLoop

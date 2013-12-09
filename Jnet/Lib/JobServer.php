@@ -16,6 +16,11 @@ class JobServer
     private $_ip;
     private $_port;
     private $_app;
+
+    /**
+     * @var Jnet\Lib\GearmanStatus
+     */
+    private $_status;
     
     public function __construct( Application $app, $ip = null, $port = null )
     {
@@ -30,6 +35,7 @@ class JobServer
         $this->_ip = $ip;
         $this->_port = $port;
         $this->_app = $app;
+        $this->_status = new GearmanStatus( $ip, $port );
     }
 
     //{{{ connect
@@ -72,6 +78,15 @@ class JobServer
         } 
 
         return $return;
+    }
+    //}}}
+    //{{{ status
+    /**
+     *
+     */
+    public function status( )
+    {
+        
     }
     //}}}
 

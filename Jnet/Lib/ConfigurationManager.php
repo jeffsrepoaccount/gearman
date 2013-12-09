@@ -1,12 +1,14 @@
 <?php namespace Jnet\Lib;
 
+use Jnet\Lib\CLI\Argument;
+
 class ConfigurationManager
 {
     const MAIN_CONFIG = 'config.ini';
     const CONFIG_DIR = 'Config';
 
     protected static $_environments = array(
-        'local', 'develop', 'staging', 'production'
+        'local', 'develop', 'staging', 'production', 'testing'
     );
 
     // Available arguments
@@ -15,10 +17,14 @@ class ConfigurationManager
         'logfile:', 'server:', 'port:'
     );
 
-
+    /**
+     * Current environment name
+     * @var string
+     */
     protected $_environmentName = 'default';
 
     protected $_environment;
+
     protected $_hostname;
     protected $_logger;
 
@@ -46,8 +52,11 @@ class ConfigurationManager
     //{{{ loadEnvironment
     /**
      * Sets the environment initially to that set in the main configuration 
-     * file. If a valid environment override can be found for the current 
-     * host, the resulting settings are 
+     * file. If valid environment settings can be found for the given host, 
+     * the environment settings are first merged together and then the entry 
+     * for servers is specifically replaced to achieve both an inheritance 
+     * style relationship between the two environments as well as allow an 
+     * override and replace in those instances that matter.
      *
      * @return Jnet\Lib\ConfigurationManager
      */
@@ -55,29 +64,33 @@ class ConfigurationManager
     {
         $this->_environment = $this->_parseIni( self::CONFIG_DIR . DS . self::MAIN_CONFIG );
 
-        // Determine what environment the current host belongs in
-        $currentEnv = $this->_environmentForHost( $this->_environment, self::$_environments );
+        // Determine what environment the current host belongs to
+        $currentEnv = $this->_environmentForHost( 
+            $this->_environment, 
+            self::$_environments 
+        );
 
         if( $currentEnv ) {
             $this->_environmentName = $currentEnv;
-            $hostEnvironment = $this->_parseIni( self::CONFIG_DIR . DS . $currentEnv . '.ini' );
+            $hostEnvironment = $this->_parseIni( 
+                self::CONFIG_DIR . DS . $currentEnv . '.ini' 
+            );
 
-            // First, do a deep replace
+            // First, deep replace anything in the current environment that is 
+            // present in the host's environment
             $this->_environment = array_replace_recursive( 
                 $this->_environment, $hostEnvironment
             );
 
-            // Replace all servers / ports in default configuration with that 
-            // of the current environment, if available.
-            if( isset( $hostEnvironment['servers']['servers'] ) ) {
-                $this->_environment['servers']['servers'] = $hostEnvironment['servers']['servers'];
-            }
-
-            if( isset( $hostEnvironment['ports']['ports'] ) ) {
-                $this->_environment['ports']['ports'] = $hostEnvironment['ports']['ports'];
+            // Specifically set the Job Servers to be those listed in the host 
+            // environment. If the host environment does not set any servers, 
+            // the default servers will still be populated
+            if( isset( $hostEnvironment['servers'] ) ) {
+                $this->_environment['servers'] = $hostEnvironment['servers'];
             }
         }
 
+        // If current host is not assigned an environment, default configuration remains.
         return $this;
     }
     //}}}
@@ -91,56 +104,41 @@ class ConfigurationManager
      */
     public function addArguments( )
     {
-        $args = getopt( self::$_shortOpts, self::$_longOpts );
 
-        // Normalize short opt / long opt entries
-        $normalArgs = array( );
-        $keys = array(
-            's' => 'server', 'p' => 'port', 'l' => 'logfile'
-        );
-        foreach( $keys as $short => $long ) {
+        var_dump($this->_environment );
+        die(__METHOD__);
+        
+        $arguments = Argument::get( );
 
-            if( !isset( $args[$short] ) ) {
-                $args[$short] = array( );
-            } else if( !is_array( $args[$short] ) ) {
-                $args[$short] = array( $args[$short] );
+        foreach( $arguments as $argument ) {
+            switch( $argument->arg ) {
+                case Argument::LOG_TYPE:
+                    // Change the current log file
+                    $this->_environment['logs']['file'] = $argument->value;
+                    break;
+                case Argument::SERVER_TYPE:
+                    break;
+                case Argument::ENV_TYPE:
+                    break;
             }
-
-            if( !isset( $args[$long] ) ) {
-                $args[$long] = array( );
-            } else if( !is_array( $args[$long] ) ) {
-                $args[$long] = array( $args[$long] );
-            }
-
-            $normalArgs[$long] = array_merge( $args[$short], $args[$long] );
         }
 
+        
+
+
         // Append command line arguments into the environment
-        $this->_environment['servers']['servers'] = array_merge(
-            $this->_environment['servers']['servers'],
+        $this->_environment['servers'] = array_merge(
+            $this->_environment['servers'],
             $normalArgs['server']
         );
 
-        $this->_environment['ports']['ports'] = array_merge(
-            $this->_environment['ports']['ports'],
-            $normalArgs['port']
-        );
-
-        var_dump( $this->_environment );
-
-        die( __METHOD__ );
-
-        echo 'environment';
-        var_dump( $this->_environment );
-
-        die(__METHOD__);
         
         return $this;
     }
     //}}}
     //{{{ options
     /**
-     *
+     * Retrieve the current environment state
      *
      * @return array
      */
@@ -151,16 +149,15 @@ class ConfigurationManager
     //}}}
     //{{{ option
     /**
+     * Retrieve the current environment state for a specific key
      *
+     * @return mixed
      */
     public function setting( $key )
     {
         return ( isset( $this->_environment[$key] ) ? $this->_environment[$key] : null );
     }
     //}}}
-
-
-
     //{{{ _parseIni
     /**
      * Return the results of parsing an ini file if the file exists, an empty 
@@ -181,7 +178,7 @@ class ConfigurationManager
     //}}}
     //{{{ _environmentForHost
     /**
-     * Helper method to retrieve an applicable environment string based on the 
+     * Helper method to retrieve an applicable environment based on the 
      * current hostname.
      *
      * @param array $defaultEnvironment
@@ -190,17 +187,19 @@ class ConfigurationManager
     protected function _environmentForHost( $defaultEnvironment, array $availableEnvironments )
     {
         foreach( $availableEnvironments as $env ) {
-            $key = $env . '_hosts';
-            if( isset( $defaultEnvironment[$key]['hosts'] ) ) {
-                foreach( $defaultEnvironment[$key]['hosts'] as $host ) {
-                    if( $host == $this->_hostname ) {  
+
+            if( isset( $defaultEnvironment['hosts'][ $env ] ) ) {
+
+                foreach( $defaultEnvironment['hosts'][$env] as $host ) {
+                    if( $host == $this->_hostname ) {
                         return $env;
                     }
+
                 }
             }
         }
 
-        return '';
+        return null;
     }
     //}}}
 }
