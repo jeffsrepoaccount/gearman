@@ -1,3 +1,4 @@
 *.log
 
 config/local.ini
+vendor

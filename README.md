@@ -31,18 +31,18 @@ The following will connect to a single job server, 127.0.0.1 and log everything 
 Background Tasks
 ----------------
 
-The Gearman worker tasks make no distinction between blocking and non-blocking tasks.  It is up to the client whether or not to request a task to be run as either a blocking / non-blocking task through use of either the `doNormal` or `doBackground` calls on the GearmanClient object.  However, if you wish to receive status update information about a task running in the background, then you must supply this information from within your task by calling `GearmanJob::sendStatus` method.  For an example, look at Jnet\Lib\TestBackground to see how status information can be relayed back to the client.
+The Gearman worker tasks make no distinction between blocking and non-blocking tasks.  It is up to the client whether or not to request a task to be run as either a blocking / non-blocking task through use of either the `doNormal` or `doBackground` calls on the GearmanClient object.  However, if you wish to receive status update information about a task running in the background, then you must supply this information from within your task by using the `GearmanJob::sendStatus` method.  For an example, look at Jnet\Lib\Tasks\TestBackground to see how status information can be relayed back to the client.
 
 
 Changelog
 ---------
 
-*1.1* -   Refactorization to include moving all classes into namespaces. Removed the requirement for separate packages to define their own factory or worker parent; worker tasks can be added to different packages solely on the basis of organization, rather than for the sole purpose of creating different worker types.  Factories and subclassed workers can still be added to packages to support different 'types' of workers, but it is no longer necessary.
+*0.0.1* -   Refactorization to include moving all classes into namespaces. Removed the requirement for separate packages to define their own factory or worker parent; worker tasks can be added to different packages solely on the basis of organization, rather than for the sole purpose of creating different worker types.  Factories and subclassed workers can still be added to packages to support different 'types' of workers, but it is no longer necessary.
+    
+    Other Changes:
 
-*1.0* -   First deployment of a working application.
+        Bugfixes, Unit Testing, 
 
-*0.9* -   Bugfixes, Unit Testing, 
+        Added functionality for allowing separate packages to define their own factory for creating workers; this should only be necessary if the construction of worker tasks in a given package requires different logic and/or shared data than what Jnet\Lib\Worker provides.
 
-*0.8* -   Added functionality for allowing separate packages to define their own factory for creating workers; this should only be necessary if the construction of worker tasks in a given package requires different logic and/or shared data than what Jnet\Lib\Worker provides.
-
-*0.7* -   Support for separating tasks into different packages added
+        Support for separating tasks into different packages added
