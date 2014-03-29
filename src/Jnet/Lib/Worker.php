@@ -9,9 +9,9 @@
  * @link        <https://github.com/jeffsrepoaccount>
  */
 
-use \RuntimeException           as RuntimeException;
-use \UnexpectedValueException   as UnexpectedValueException;
-use \GearmanJob                 as GearmanJob;
+use RuntimeException;
+use UnexpectedValueException;
+use GearmanJob;
 
 abstract class Worker implements iGearmanTask
 {

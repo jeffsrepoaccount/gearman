@@ -13,7 +13,7 @@
 
 declare( ticks = 1 );
 
-$app = require_once __DIR__ . '/Jnet/Lib/bootstrap.php';
+$app = require_once __DIR__ . '/bootstrap/bootstrap.php';
 
 try {
 
